@@ -1,5 +1,7 @@
 from config.flask import create_app
-from flask import jsonify
+from dotenv import load_dotenv
+
+load_dotenv()
 app,celery = create_app()
 
 from routes import api_v1
