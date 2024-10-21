@@ -1,0 +1,33 @@
+services:
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  flask_app:
+    build:
+      context: .  # Build context where your Dockerfile is located
+      dockerfile: Dockerfile
+    container_name: flask_app
+    env_file:
+      - .env
+    volumes:
+      - .:/usr/src/app
+      - ./requirements.txt:/usr/src/app/requirements.txt  # Mount requirements.txt
+    ports:
+      - "5000:5000"
+    command: ["gunicorn", "-w", "4", "--timeout", "120", "--reload", "-b", "0.0.0.0:5000", "app:app"]
+    depends_on:
+      - redis
+
+  celery_worker:
+    build: .
+    command: celery -A app.celery worker --loglevel=info -c ${CELERY_WORKER_CONCURRENCY}
+    user: "1000:1000"
+    volumes:
+      - .:/usr/src/app
+    env_file:
+      - .env
+    depends_on:
+      - flask_app
+      - redis
