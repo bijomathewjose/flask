@@ -7,6 +7,13 @@ ENV PYTHONUNBUFFERED 1
 
 RUN pip install --upgrade pip
 
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+RUN apt-get update && apt-get install -y \
+    libopencv-dev \
+    python3-opencv
+
+
 COPY requirements.txt /usr/src/app/requirements.txt
 
 RUN pip install --no-cache-dir -r requirements.txt
