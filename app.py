@@ -312,9 +312,9 @@ def upload_to_s3(file_path, s3_key):
     # Initialize a session using Amazon S3
     s3_client = boto3.client(
         's3',
-        region_name="us-east-1",
-        aws_access_key_id="AKIAQLSIVUGCCDXXZXFC",
-        aws_secret_access_key="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"
+        region_name=os.getenv("AWS_DEFAULT_REGION"),
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
     )
 
     content_type, _ = mimetypes.guess_type(file_path)
@@ -323,7 +323,7 @@ def upload_to_s3(file_path, s3_key):
 
     try:
         # Upload the file to the S3 bucket
-        s3_client.upload_file(file_path, "igo-media-dev", s3_key)
+        s3_client.upload_file(file_path, os.getenv("S3_BUCKET_NAME"), s3_key)
         print(f"File {file_path} uploaded to S3 as {s3_key}.")
     except Exception as e:
         print(f"Failed to upload {file_path} to S3: {e}")
@@ -332,10 +332,10 @@ def upload_to_s3(file_path, s3_key):
 ALLOWED_EXTENSIONS = {'csv'}  # Only allow CSV file uploads for SKU information
 
 # S3 configuration
-S3_BUCKET_NAME = 'your-s3-bucket-name'
-S3_REGION_NAME = 'your-region-name'  
-S3_ACCESS_KEY = 'your-access-key'
-S3_SECRET_KEY = 'your-secret-key'
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+S3_REGION_NAME = os.getenv("AWS_DEFAULT_REGION")
+S3_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
+S3_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 
 # Load the OpenVINO model
 model_input_size = [1024, 1024]
