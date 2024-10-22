@@ -33,5 +33,3 @@ def setup_gen_ai():
     return model
 
 from .generate_prompt import *
-
-logger.info("Gen_AI module imported")

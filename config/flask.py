@@ -5,7 +5,7 @@ from .celery import make_celery
 import os
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__,template_folder='../templates')
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     logger.info('Creating app...')

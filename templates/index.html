@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload CSV for Background Removal</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            padding: 20px;
+            max-width: 600px;
+            margin: auto;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        form {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="file"] {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin-top: 5px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .hidden {
+            display: none;
+        }
+        .visible {
+            display: block;
+        }
+        #loadingMessage {
+            color: #007bff;
+            font-style: italic;
+        }
+        #completionMessage {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        .success {
+            color: #28a745;
+        }
+        .error {
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <h1>Upload CSV for Background Removal</h1>
+    <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
+        <label for="sellerId">Seller ID:</label>
+        <input type="text" id="sellerId" name="sellerId" required placeholder="Enter Seller ID"><br><br>
+        
+        <label for="partnerId">Partner ID:</label>
+        <input type="text" id="partnerId" name="partnerId" required placeholder="Enter Partner ID"><br><br>
+        
+        <label for="csv">Select CSV File:</label>
+        <input type="file" id="csv" name="csv" accept=".csv" required><br><br>
+        
+        <button type="submit">Upload</button>
+    </form>
+
+    <div id="loadingMessage" class="hidden">Processing... Please wait.</div>
+    <div id="completionMessage" class="hidden"></div>
+
+    <script>
+        const uploadForm = document.getElementById('uploadForm');
+        const loadingMessage = document.getElementById('loadingMessage');
+        const completionMessage = document.getElementById('completionMessage');
+
+        uploadForm.addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent the form from submitting normally
+
+            // Show the loading message
+            loadingMessage.className = 'visible';
+            completionMessage.className = 'hidden';
+            completionMessage.textContent = '';
+
+            // Create a FormData object
+            const formData = new FormData(uploadForm);
+
+            // Send the request
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json().catch(() => ({ error: "Unexpected response from server" })))
+            .then(data => {
+                // Hide the loading message
+                loadingMessage.className = 'hidden';
+                
+                // Show the completion message
+                completionMessage.className = 'visible';
+                if (data.message) {
+                    completionMessage.textContent = data.message;
+                    completionMessage.className = 'visible success';
+                } else {
+                    completionMessage.textContent = `Error: ${data.error}`;
+                    completionMessage.className = 'visible error';
+                }
+            })
+            .catch(error => {
+                // Hide the loading message
+                loadingMessage.className = 'hidden';
+
+                // Show the error message
+                completionMessage.className = 'visible error';
+                completionMessage.textContent = `Error: ${error}`;
+            });
+        });
+    </script>
+</body>
+</html>
