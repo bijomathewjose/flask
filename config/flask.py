@@ -23,4 +23,4 @@ def create_app():
 
     celery = make_celery(app)
 
-    return app, celery
+    return app, celery,logger

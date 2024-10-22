@@ -2,7 +2,7 @@ from config.flask import create_app
 from dotenv import load_dotenv
 
 load_dotenv()
-app,celery = create_app()
+app, celery ,logger = create_app()
 
 from routes import api_v1
 app.register_blueprint(api_v1, url_prefix='/api/v1')
