@@ -1,6 +1,6 @@
 from config.flask import create_app
 from dotenv import load_dotenv
-from flask import render_template, jsonify, request
+from flask import render_template, jsonify, request,send_file
 import zipfile
 import os
 import cv2
@@ -13,16 +13,18 @@ from werkzeug.utils import secure_filename
 import boto3
 import mimetypes
 
-
 load_dotenv()
 
 app, celery ,logger = create_app()
 
-from routes import api_v1
+from routes import api_v1,lifestyle_shots as LS
+from utils.csv_parser import parse_csv_to_list
+
 app.register_blueprint(api_v1, url_prefix='/api/v1')
 
 @app.route('/')
 def index():
+    logger.info("index")
     return render_template('index.html')
     
 @app.route('/health')
@@ -51,176 +53,185 @@ def upload_file():
 
     # Read the CSV file to get the SKU ID and process_id
     try:
-        data = pd.read_csv(csv_path)
-        if 'sku_id' not in data.columns or 'process_id' not in data.columns:
-            return jsonify({"error": "CSV file must contain 'sku_id' and 'process_id' columns"}), 400
-
-        sku_id = data['sku_id'].iloc[0]
-        process_id = data['process_id'].iloc[0]  # Get the process_id from the CSV
+        list_of_process = parse_csv_to_list(csv_path)
     except Exception as e:
         return jsonify({"error": f"Failed to read the CSV file: {str(e)}"}), 500
+    try:
+        for process in list_of_process:
+            logger.info(f"Processing SKU: {process['sku_id']} with process: {process['process_id']}")
+            sku_id = process['sku_id']
+            process_id = process['process_id']
 
     # Construct the folder paths based on seller ID and SKU ID
-    base_folder = f"./assets/3d360/{seller_id}/{sku_id}/raw"
+            base_folder = f"./assets/{seller_id}/{sku_id}/raw"
 
-    # Look for video files in the raw folder
-    video_file_paths = [
-        os.path.join(base_folder, file_name)
-        for file_name in os.listdir(base_folder)
-        if file_name.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.wmv'))
-    ][:10]  # Limit to 10 video files
-
-    if process_id == "3D360":
-        if not video_file_paths:
-            return jsonify({"error": "No video files found in the raw folder"}), 400
-
-        # Process the videos and generate P3D
-        try:
-            # Create the output folder for processed images and P3D
-            processed_folder = os.path.join(f"./assets/3d360/{seller_id}/{sku_id}/processed")
-            os.makedirs(processed_folder, exist_ok=True)
-
-            processed_images = []
-            
-            # Process each video file, passing seller_id and sku_id
-            for video_file_path in video_file_paths:
-                video_processed_images = process_video(video_file_path, processed_folder, seller_id, sku_id)
-                processed_images.extend(video_processed_images)
-
-            # Create P3D file in the processed folder
-            create_p3d_file(processed_images, processed_folder, seller_id, sku_id)
-
-            # Generate S3 file URL
-            s3_file_url = f"https://{S3_BUCKET_NAME}.s3.{S3_REGION_NAME}.amazonaws.com/{seller_id}/{sku_id}/{sku_id}.p3d"
-
-            return jsonify({"message": "Videos processed and P3D file stored successfully.", "s3_url": s3_file_url}), 200
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-        
-    elif process_id == "bg_elimination":
-        # Look for image files in the raw folder
-        image_file_paths = [os.path.join(base_folder, f) for f in os.listdir(base_folder)
-                            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff'))]
-
-        if not image_file_paths:
-            return jsonify({"error": "No image files found in the raw folder for background elimination."}), 400
-
-        # Create the output folder for processed images
-        processed_folder = os.path.join(f"./assets/3d360/{seller_id}/{sku_id}/processed")
-        os.makedirs(processed_folder, exist_ok=True)
-
-        # Process each image file
-        processed_images = []
-        for image_path in image_file_paths:
-            try:
-                image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-                if image is None:
-                    print(f"Error: Failed to read image at {image_path}. Skipping.")
+            # Look for video files in the raw folder
+            video_file_paths = [
+                os.path.join(base_folder, file_name)
+                for file_name in os.listdir(base_folder)
+                if file_name.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.wmv'))
+            ][:10]  # Limit to 10 video files
+            if process_id=='lifestyle_shot': 
+                try: 
+                    image=LS.lifestyle_shots(seller_id,sku_id)
+                    print(image.filename)
+                except Exception as e:
+                    logger.error(f"Error processing lifestyle shots for SKU {sku_id}: {str(e)}")
                     continue
+            elif process_id == "3D360":
+                continue
+                if not video_file_paths:
+                    return jsonify({"error": "No video files found in the raw folder"}), 400
 
-                # Prepare frame for OpenVINO
-                input_image = cv2.resize(image, (model_input_size[1], model_input_size[0]))
-                input_image = input_image.transpose(2, 0, 1)
-                input_image = np.expand_dims(input_image, axis=0).astype(np.float32) / 255.0
+                # Process the videos and generate P3D
+                try:
+                    # Create the output folder for processed images and P3D
+                    processed_folder = os.path.join(f"./assets/3d360/{seller_id}/{sku_id}/processed")
+                    os.makedirs(processed_folder, exist_ok=True)
 
-                # Perform inference
-                result = ov_compiled_model(input_image)[0]
+                    processed_images = []
+                    
+                    # Process each video file, passing seller_id and sku_id
+                    for video_file_path in video_file_paths:
+                        video_processed_images = process_video(video_file_path, processed_folder, seller_id, sku_id)
+                        processed_images.extend(video_processed_images)
 
-                # Generate binary mask
-                mask = result[0] > 0.5
-                mask = mask.astype(np.uint8) * 255
-                mask = np.squeeze(mask)
-                mask_resized = cv2.resize(mask, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST)
+                    # Create P3D file in the processed folder
+                    create_p3d_file(processed_images, processed_folder, seller_id, sku_id)
 
-                # Optional: Morphological operations to improve mask
-                kernel = np.ones((5, 5), np.uint8)
-                mask_resized = cv2.morphologyEx(mask_resized, cv2.MORPH_CLOSE, kernel)
+                    # Generate S3 file URL
+                    s3_file_url = f"https://{S3_BUCKET_NAME}.s3.{S3_REGION_NAME}.amazonaws.com/{seller_id}/{sku_id}/{sku_id}.p3d"
 
-                # Create output image with background removed
-                no_bg_image = cv2.bitwise_and(image, image, mask=mask_resized)
-                no_bg_image = cv2.cvtColor(no_bg_image, cv2.COLOR_BGR2BGRA)
-                no_bg_image[:, :, 3] = mask_resized
+                    return jsonify({"message": "Videos processed and P3D file stored successfully.", "s3_url": s3_file_url}), 200
+                except Exception as e:
+                    return jsonify({"error": str(e)}), 500
+                
+            elif process_id == "bg_elimination":
+                # Look for image files in the raw folder
+                image_file_paths = [os.path.join(base_folder, f) for f in os.listdir(base_folder)
+                                    if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff'))]
 
-                # Apply center alignment
-                centered_image = center_align_subject(no_bg_image)
+                if not image_file_paths:
+                    return jsonify({"error": "No image files found in the raw folder for background elimination."}), 400
 
-                # Save the image
-                output_filename = os.path.basename(image_path)
-                output_path = os.path.join(processed_folder, output_filename)
-                cv2.imwrite(output_path, centered_image)
+                # Create the output folder for processed images
+                processed_folder = os.path.join(f"./assets/3d360/{seller_id}/{sku_id}/processed")
+                os.makedirs(processed_folder, exist_ok=True)
 
-                processed_images.append(output_path)
-                print(f"Processed image saved as {output_path}")
+                # Process each image file
+                processed_images = []
+                for image_path in image_file_paths:
+                    try:
+                        image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+                        if image is None:
+                            print(f"Error: Failed to read image at {image_path}. Skipping.")
+                            continue
 
-            except Exception as e:
-                print(f"Unexpected error while processing image {image_path}: {e}")
+                        # Prepare frame for OpenVINO
+                        input_image = cv2.resize(image, (model_input_size[1], model_input_size[0]))
+                        input_image = input_image.transpose(2, 0, 1)
+                        input_image = np.expand_dims(input_image, axis=0).astype(np.float32) / 255.0
 
-        return jsonify({"message": "Background elimination completed successfully.", "processed_images": processed_images}), 200
+                        # Perform inference
+                        result = ov_compiled_model(input_image)[0]
 
-    elif process_id == "bg_elimination with bleed":
-        # Look for image files in the raw folder
-        image_file_paths = [os.path.join(base_folder, f) for f in os.listdir(base_folder)
-                            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff', '.jfif'))]
+                        # Generate binary mask
+                        mask = result[0] > 0.5
+                        mask = mask.astype(np.uint8) * 255
+                        mask = np.squeeze(mask)
+                        mask_resized = cv2.resize(mask, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST)
 
-        if not image_file_paths:
-            return jsonify({"error": "No image files found in the raw folder for background elimination with bleed."}), 400
+                        # Optional: Morphological operations to improve mask
+                        kernel = np.ones((5, 5), np.uint8)
+                        mask_resized = cv2.morphologyEx(mask_resized, cv2.MORPH_CLOSE, kernel)
 
-        # Create the output folder for processed images
-        processed_folder = os.path.join(f"./assets/3d360/{seller_id}/{sku_id}/processed")
-        os.makedirs(processed_folder, exist_ok=True)
+                        # Create output image with background removed
+                        no_bg_image = cv2.bitwise_and(image, image, mask=mask_resized)
+                        no_bg_image = cv2.cvtColor(no_bg_image, cv2.COLOR_BGR2BGRA)
+                        no_bg_image[:, :, 3] = mask_resized
 
-        # Process each image file with bleed effect
-        processed_images = []
-        for image_path in image_file_paths:
-            try:
-                image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-                if image is None:
-                    print(f"Error: Failed to read image at {image_path}. Skipping.")
-                    continue
+                        # Apply center alignment
+                        centered_image = center_align_subject(no_bg_image)
 
-                # Prepare frame for OpenVINO
-                input_image = cv2.resize(image, (model_input_size[1], model_input_size[0]))
-                input_image = input_image.transpose(2, 0, 1)
-                input_image = np.expand_dims(input_image, axis=0).astype(np.float32) / 255.0
+                        # Save the image
+                        output_filename = os.path.basename(image_path)
+                        output_path = os.path.join(processed_folder, output_filename)
+                        cv2.imwrite(output_path, centered_image)
 
-                # Perform inference
-                result = ov_compiled_model(input_image)[0]
+                        processed_images.append(output_path)
+                        print(f"Processed image saved as {output_path}")
 
-                # Generate binary mask
-                mask = result[0] > 0.5
-                mask = mask.astype(np.uint8) * 255
-                mask = np.squeeze(mask)
-                mask_resized = cv2.resize(mask, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST)
+                    except Exception as e:
+                        print(f"Unexpected error while processing image {image_path}: {e}")
 
-                # Optional: Morphological operations to improve mask
-                kernel = np.ones((5, 5), np.uint8)
-                mask_resized = cv2.morphologyEx(mask_resized, cv2.MORPH_CLOSE, kernel)
+                return jsonify({"message": "Background elimination completed successfully.", "processed_images": processed_images}), 200
 
-                # Create output image with background removed
-                no_bg_image = cv2.bitwise_and(image, image, mask=mask_resized)
-                no_bg_image = cv2.cvtColor(no_bg_image, cv2.COLOR_BGR2BGRA)
-                no_bg_image[:, :, 3] = mask_resized
+            elif process_id == "bg_elimination with bleed":
+                # Look for image files in the raw folder
+                image_file_paths = [os.path.join(base_folder, f) for f in os.listdir(base_folder)
+                                    if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff', '.jfif'))]
 
-                # Apply bleed effect and center alignment
-                bleeded_image = apply_bleed_effect(no_bg_image)
-                centered_image = center_align_subject(bleeded_image)
+                if not image_file_paths:
+                    return jsonify({"error": "No image files found in the raw folder for background elimination with bleed."}), 400
 
-                # Save the image
-                output_filename = os.path.basename(image_path)
-                output_path = os.path.join(processed_folder, output_filename)
-                cv2.imwrite(output_path, centered_image)
+                # Create the output folder for processed images
+                processed_folder = os.path.join(f"./assets/3d360/{seller_id}/{sku_id}/processed")
+                os.makedirs(processed_folder, exist_ok=True)
 
-                processed_images.append(output_path)
-                print(f"Processed image saved as {output_path}")
+                # Process each image file with bleed effect
+                processed_images = []
+                for image_path in image_file_paths:
+                    try:
+                        image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+                        if image is None:
+                            print(f"Error: Failed to read image at {image_path}. Skipping.")
+                            continue
 
-            except Exception as e:
-                print(f"Unexpected error while processing image {image_path}: {e}")
+                        # Prepare frame for OpenVINO
+                        input_image = cv2.resize(image, (model_input_size[1], model_input_size[0]))
+                        input_image = input_image.transpose(2, 0, 1)
+                        input_image = np.expand_dims(input_image, axis=0).astype(np.float32) / 255.0
 
-        return jsonify({"message": "Background elimination with bleed completed successfully.", "processed_images": processed_images}), 200
+                        # Perform inference
+                        result = ov_compiled_model(input_image)[0]
 
-    else:
-        return jsonify({"error": "Unsupported process_id"}), 400    
+                        # Generate binary mask
+                        mask = result[0] > 0.5
+                        mask = mask.astype(np.uint8) * 255
+                        mask = np.squeeze(mask)
+                        mask_resized = cv2.resize(mask, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST)
 
+                        # Optional: Morphological operations to improve mask
+                        kernel = np.ones((5, 5), np.uint8)
+                        mask_resized = cv2.morphologyEx(mask_resized, cv2.MORPH_CLOSE, kernel)
+
+                        # Create output image with background removed
+                        no_bg_image = cv2.bitwise_and(image, image, mask=mask_resized)
+                        no_bg_image = cv2.cvtColor(no_bg_image, cv2.COLOR_BGR2BGRA)
+                        no_bg_image[:, :, 3] = mask_resized
+
+                        # Apply bleed effect and center alignment
+                        bleeded_image = apply_bleed_effect(no_bg_image)
+                        centered_image = center_align_subject(bleeded_image)
+
+                        # Save the image
+                        output_filename = os.path.basename(image_path)
+                        output_path = os.path.join(processed_folder, output_filename)
+                        cv2.imwrite(output_path, centered_image)
+
+                        processed_images.append(output_path)
+                        print(f"Processed image saved as {output_path}")
+
+                    except Exception as e:
+                        print(f"Unexpected error while processing image {image_path}: {e}")
+
+                return jsonify({"message": "Background elimination with bleed completed successfully.", "processed_images": processed_images}), 200
+
+            else:
+                return jsonify({"error": "Unsupported process_id"}), 400    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"message": 'Hello'}), 200
 def process_video(video_path, save_directory, seller_id, sku_id):
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
