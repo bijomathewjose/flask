@@ -130,10 +130,12 @@ def upload_file():
 
                 # Process each image file
                 processed_images = []
+                
                 s3_urls = []
 
                 for image_path in image_file_paths:
                     try:
+                        
                         image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
                         if image is None:
                             print(f"Error: Failed to read image at {image_path}. Skipping.")
