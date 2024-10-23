@@ -81,7 +81,7 @@ def upload_file():
             if process_id=='lifestyle_shot': 
                 try: 
                     image=LS.lifestyle_shots(seller_id,sku_id)
-                    print(image.filename)
+                    return jsonify({"message": "Lifestyle shots processed successfully"}), 200
                 except Exception as e:
                     logger.error(f"Error processing lifestyle shots for SKU {sku_id}: {str(e)}")
                     continue

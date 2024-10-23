@@ -1,8 +1,11 @@
 from app import logger
 import os
+from flask import jsonify
 import re
-from .celery import process_image_task
+from .celery import process_image_task,processor
 from utils import directory as DIR
+import time
+
 IMAGE_EXTENSIONS = ['.jpg', '.jpeg']
 BUCKET_NAME=os.getenv("S3_BUCKET_NAME")
 def sort_filenames(filenames):
@@ -16,7 +19,7 @@ def sort_filenames(filenames):
     return sorted_filenames
 
 def lifestyle_shots(user_id,sku_id):
-    path=f"./assets/{user_id}/{sku_id}/raw"
+    path=f"./assets/batch_process_output/{user_id}/{sku_id}/raw"
     logger.info(f"Starting lifestyle shots for SKU: {sku_id}")
     if not DIR.check_folder_exists(path):
         raise ValueError(f"Folder '{path}' does not exist.")
@@ -29,6 +32,9 @@ def lifestyle_shots(user_id,sku_id):
     count=0
     sorted_images=sort_filenames(images)
     task_ids = []
+    processed_folder = os.path.join(f"./assets/batch_process_output/{user_id}/{sku_id}/processed/lifestyle_shots")
+    logger.info(f"Processed folder: {processed_folder}")
+    os.makedirs(processed_folder, exist_ok=True)
     for image in sorted_images:
         format=image.split('.')[-1]
         filepath=f"{path}/{image}"
@@ -36,9 +42,11 @@ def lifestyle_shots(user_id,sku_id):
             file_content=file.read()
             filename=f"{user_id}_{sku_id}_{count+1}.{format}"
             logger.info(f"Processing image: {filename}")
-            task_id=process_image_task.delay(file_content, filename, BUCKET_NAME,sku_id,count,filepath)
+            
+            task_id=processor(file_content, filename, BUCKET_NAME,sku_id,count,filepath,user_id,processed_folder)
             task_ids.append(task_id)
+            time.sleep(10)  
             count+=1
             if count==3:
                 break
-    return task_ids
+    return jsonify({"task_ids":task_ids}), 200
