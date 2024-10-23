@@ -79,7 +79,6 @@ def upload_file():
                     logger.error(f"Error processing lifestyle shots for SKU {sku_id}: {str(e)}")
                     continue
             elif process_id == "3D360":
-                continue
                 if not video_file_paths:
                     return jsonify({"error": "No video files found in the raw folder"}), 400
 
@@ -231,7 +230,7 @@ def upload_file():
                 return jsonify({"error": "Unsupported process_id"}), 400    
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    return jsonify({"message": 'Hello'}), 200
+    return jsonify({"message": "Process completed successfully"}), 200
 def process_video(video_path, save_directory, seller_id, sku_id):
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
