@@ -12,6 +12,7 @@ from pathlib import Path
 from werkzeug.utils import secure_filename
 import boto3
 import mimetypes
+from utils import db
 
 load_dotenv()
 
@@ -21,6 +22,12 @@ from routes import api_v1,lifestyle_shots as LS
 from utils.csv_parser import parse_csv_to_list
 
 app.register_blueprint(api_v1, url_prefix='/api/v1')
+
+def store_image_in_db(connection, s3_url, sku_id, index):
+    field_name = f"img_{index}"
+    query = f"UPDATE all_platform_products SET {field_name} = %s WHERE sku = %s"
+    params = [s3_url, sku_id]  # Pass as tuple
+    db.execute_query(connection, query, params)
 
 @app.route('/')
 def index():
@@ -63,7 +70,7 @@ def upload_file():
             process_id = process['process_id']
 
     # Construct the folder paths based on seller ID and SKU ID
-            base_folder = f"./assets/{seller_id}/{sku_id}/raw"
+            base_folder = f"./assets/batch_process_output/{seller_id}/{sku_id}/raw"
 
             # Look for video files in the raw folder
             video_file_paths = [
@@ -85,7 +92,7 @@ def upload_file():
                 # Process the videos and generate P3D
                 try:
                     # Create the output folder for processed images and P3D
-                    processed_folder = os.path.join(f"./assets/3d360/{seller_id}/{sku_id}/processed")
+                    processed_folder = os.path.join(f"./assets/batch_process_output/{seller_id}/{sku_id}/processed")
                     os.makedirs(processed_folder, exist_ok=True)
 
                     processed_images = []
@@ -107,18 +114,24 @@ def upload_file():
                 
             elif process_id == "bg_elimination":
                 # Look for image files in the raw folder
-                image_file_paths = [os.path.join(base_folder, f) for f in os.listdir(base_folder)
-                                    if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff'))]
+                image_file_paths = [
+                    os.path.join(base_folder, f) for f in os.listdir(base_folder)
+                    if any(f.lower() == f"{sku_id}_raw_{i}.{ext}" for i in range(1, 5) for ext in ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'tiff'])
+                    ]
 
                 if not image_file_paths:
                     return jsonify({"error": "No image files found in the raw folder for background elimination."}), 400
 
                 # Create the output folder for processed images
-                processed_folder = os.path.join(f"./assets/3d360/{seller_id}/{sku_id}/processed")
+                processed_folder = os.path.join(f"./assets/batch_process_output/{seller_id}/{sku_id}/processed/bg_eliminated")
                 os.makedirs(processed_folder, exist_ok=True)
+
+                image_counter = 1
 
                 # Process each image file
                 processed_images = []
+                s3_urls = []
+
                 for image_path in image_file_paths:
                     try:
                         image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
@@ -153,32 +166,48 @@ def upload_file():
                         centered_image = center_align_subject(no_bg_image)
 
                         # Save the image
-                        output_filename = os.path.basename(image_path)
+                        output_filename = f"{seller_id}_{sku_id}_{image_counter}.png"
                         output_path = os.path.join(processed_folder, output_filename)
                         cv2.imwrite(output_path, centered_image)
+
+                        # Upload processed image to S3
+                        s3_key = f"python_processed_outputs/bg_eliminated/{output_filename}"
+                        s3_url = upload_to_s3(output_path, s3_key)
+                        s3_urls.append(s3_url)
+
+                        connection = db.create_connection()
+                        store_image_in_db(s3_url, sku_id, image_counter)
+                        db.close_connection(connection)
 
                         processed_images.append(output_path)
                         print(f"Processed image saved as {output_path}")
 
+                        image_counter += 1
+
                     except Exception as e:
                         print(f"Unexpected error while processing image {image_path}: {e}")
 
-                return jsonify({"message": "Background elimination completed successfully.", "processed_images": processed_images}), 200
+                return jsonify({"message": "Background elimination completed successfully.", "processed_images": s3_urls}), 200
 
             elif process_id == "bg_elimination with bleed":
                 # Look for image files in the raw folder
-                image_file_paths = [os.path.join(base_folder, f) for f in os.listdir(base_folder)
-                                    if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff', '.jfif'))]
+                image_file_paths = [
+                    os.path.join(base_folder, f) for f in os.listdir(base_folder)
+                    if any(f.lower() == f"{sku_id}_raw_{i}.{ext}" for i in range(1, 5) for ext in ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'tiff'])
+                ]
 
                 if not image_file_paths:
                     return jsonify({"error": "No image files found in the raw folder for background elimination with bleed."}), 400
 
                 # Create the output folder for processed images
-                processed_folder = os.path.join(f"./assets/3d360/{seller_id}/{sku_id}/processed")
+                processed_folder = os.path.join(f"./assets/batch_process_output/{seller_id}/{sku_id}/processed/bg_eliminated_bleed")
                 os.makedirs(processed_folder, exist_ok=True)
+
+                image_counter = 1
 
                 # Process each image file with bleed effect
                 processed_images = []
+                s3_urls = []
                 for image_path in image_file_paths:
                     try:
                         image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
@@ -214,17 +243,28 @@ def upload_file():
                         centered_image = center_align_subject(bleeded_image)
 
                         # Save the image
-                        output_filename = os.path.basename(image_path)
+                        output_filename = f"{seller_id}_{sku_id}_{image_counter}.png"
                         output_path = os.path.join(processed_folder, output_filename)
                         cv2.imwrite(output_path, centered_image)
+
+                        # Upload processed image to S3
+                        s3_key = f"python_processed_outputs/bg_eliminated_bleed/{output_filename}"
+                        s3_url = upload_to_s3(output_path, s3_key)
+                        s3_urls.append(s3_url)
+
+                        connection = db.create_connection()
+                        store_image_in_db(s3_url, sku_id, image_counter)
+                        db.close_connection(connection)
 
                         processed_images.append(output_path)
                         print(f"Processed image saved as {output_path}")
 
+                        image_counter += 1
+
                     except Exception as e:
                         print(f"Unexpected error while processing image {image_path}: {e}")
 
-                return jsonify({"message": "Background elimination with bleed completed successfully.", "processed_images": processed_images}), 200
+                return jsonify({"message": "Background elimination with bleed completed successfully.", "processed_images": s3_urls}), 200
 
             else:
                 return jsonify({"error": "Unsupported process_id"}), 400    
@@ -333,8 +373,12 @@ def upload_to_s3(file_path, s3_key):
 
     try:
         # Upload the file to the S3 bucket
-        s3_client.upload_file(file_path, os.getenv("S3_BUCKET_NAME"), s3_key)
+        s3_client.upload_file(file_path, "igo-media-dev", s3_key)
         print(f"File {file_path} uploaded to S3 as {s3_key}.")
+
+        s3_url = f"https://{S3_BUCKET_NAME}.s3.{S3_REGION_NAME}.amazonaws.com/{s3_key}"
+        return s3_url
+    
     except Exception as e:
         print(f"Failed to upload {file_path} to S3: {e}")
 
