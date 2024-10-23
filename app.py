@@ -119,8 +119,11 @@ def upload_file():
 
                 # Process each image file
                 processed_images = []
+                count=0
                 for image_path in image_file_paths:
                     try:
+                        if count==4:
+                            break
                         image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
                         if image is None:
                             print(f"Error: Failed to read image at {image_path}. Skipping.")
@@ -156,13 +159,14 @@ def upload_file():
                         output_filename = os.path.basename(image_path)
                         output_path = os.path.join(processed_folder, output_filename)
                         cv2.imwrite(output_path, centered_image)
-
+                        
                         processed_images.append(output_path)
                         print(f"Processed image saved as {output_path}")
 
                     except Exception as e:
                         print(f"Unexpected error while processing image {image_path}: {e}")
-
+                    finally:
+                        count+=1
                 return jsonify({"message": "Background elimination completed successfully.", "processed_images": processed_images}), 200
 
             elif process_id == "bg_elimination with bleed":
