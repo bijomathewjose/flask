@@ -64,7 +64,7 @@ def processor(file, filename, bucket_name,sku_id,index,filepath,seller_id,proces
         logger.info(f"Image saved at {output_path}")
 
         lifestyle_image.seek(0)
-        s3_url = s3.upload_to_s3(lifestyle_image, filename,bucket_name,directory_name='lifestyle_shots')
+        s3_url = s3.upload_to_s3(lifestyle_image, filename,bucket_name,directory_name='python_processed_outputs/lifestyle_shots')
         store_image_in_db(connection,s3_url,sku_id,index)
         db.close_connection(connection)
         if not s3_url:

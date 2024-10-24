@@ -13,7 +13,7 @@ from werkzeug.utils import secure_filename
 import boto3
 import mimetypes
 from utils import db
-
+from utils.aws import s3
 load_dotenv()
 app = None
 logger = None
@@ -109,6 +109,7 @@ def upload_file():
 
                     # Generate S3 file URL
                     s3_file_url = f"https://{S3_BUCKET_NAME}.s3.{S3_REGION_NAME}.amazonaws.com/{seller_id}/{sku_id}/{sku_id}.p3d"
+                    
 
                     return jsonify({"message": "Videos processed and P3D file stored successfully.", "s3_url": s3_file_url}), 200
                 except Exception as e:
@@ -177,12 +178,12 @@ def upload_file():
                         output_filename = f"{seller_id}_{sku_id}_{image_counter}.png"
                         output_path = os.path.join(processed_folder, output_filename)
                         cv2.imwrite(output_path, centered_image)
-
+                        
                         # Upload processed image to S3
                         s3_key = f"python_processed_outputs/bg_eliminated/{output_filename}"
                         s3_url = upload_to_s3(output_path, s3_key)
                         s3_urls.append(s3_url)
-
+                        
                         connection = db.create_connection()
                         store_image_in_db(connection, s3_url, sku_id, image_counter)
                         db.close_connection(connection)
@@ -386,9 +387,10 @@ def upload_to_s3(file_path, s3_key):
     try:
         # Upload the file to the S3 bucket
         s3_client.upload_file(file_path, "igo-media-dev", s3_key)
+        
         print(f"File {file_path} uploaded to S3 as {s3_key}.")
 
-        s3_url = f"https://{S3_BUCKET_NAME}.s3.{S3_REGION_NAME}.amazonaws.com/{s3_key}"
+        s3_url = f"https://{S3_BUCKET_NAME}.s3.amazonaws.com/{s3_key}"
         return s3_url
     
     except Exception as e:
