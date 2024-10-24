@@ -49,4 +49,4 @@ def lifestyle_shots(user_id,sku_id):
             task_ids.append(task_id)
             time.sleep(10)  
             count+=1
-    return jsonify({"message":task_ids}), 200
+    return task_ids

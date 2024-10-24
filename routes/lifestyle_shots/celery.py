@@ -43,22 +43,8 @@ def processor(file, filename, bucket_name,sku_id,index,filepath,seller_id,proces
         logger.info(f"Processing image: {filename}, SKU: {sku_id}, Index: {index}")
         image_with_no_bg = EX_API.remove_background(file)
 
-        pil_image = Image.open(image_with_no_bg)
-        cv_image = np.array(pil_image)
-        output_filename = f"{seller_id}_{sku_id}_{index}_no_bg.jpg"
-        output_path = os.path.join(f"{processed_folder}/no_bg/", output_filename)
-        cv2.imwrite(output_path, cv_image)
-        logger.info(f"Image with no background saved at {output_path}")
-
         logger.info('Image with no background')
         centered_image = IMG.create_canvas_with_bleed(image_with_no_bg)
-
-        pil_image = Image.open(centered_image)
-        cv_image = np.array(pil_image)
-        output_filename = f"{seller_id}_{sku_id}_{index}_centered.jpg"
-        output_path = os.path.join(f"{processed_folder}/centered/", output_filename)
-        cv2.imwrite(output_path, cv_image)
-        logger.info(f"Centered image saved at {output_path}")
 
         logger.info('centered Image')
         connection = db.create_connection()
