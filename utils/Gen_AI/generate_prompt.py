@@ -1,7 +1,8 @@
 from app import logger
-from . import model
+from . import setup_gen_ai
 
 def generate_prompt(input_text):
+    model=setup_gen_ai()
     logger.info("Starting generate_prompt function")
     try:
         logger.info("Setting up Gen AI model")

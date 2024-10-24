@@ -2,7 +2,7 @@ from app import logger
 import os
 from flask import jsonify
 import re
-from .celery import process_image_task,processor
+from .celery import processor
 from utils import directory as DIR
 import time
 
@@ -36,6 +36,8 @@ def lifestyle_shots(user_id,sku_id):
     logger.info(f"Processed folder: {processed_folder}")
     os.makedirs(processed_folder, exist_ok=True)
     for image in sorted_images:
+        if count==4:
+            break
         format=image.split('.')[-1]
         filepath=f"{path}/{image}"
         with open(filepath, 'rb') as file:
@@ -47,6 +49,4 @@ def lifestyle_shots(user_id,sku_id):
             task_ids.append(task_id)
             time.sleep(10)  
             count+=1
-            if count==3:
-                break
-    return jsonify({"task_ids":task_ids}), 200
+    return jsonify({"message":task_ids}), 200

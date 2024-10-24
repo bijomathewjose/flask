@@ -1,26 +1,35 @@
-from flask import Flask
 import logging
-from flask_cors import CORS
-from .celery import make_celery
 import os
+from flask import Flask
+from flask_cors import CORS
 
-def create_app():
-    app = Flask(__name__,template_folder='../templates')
+
+
+def create_app(app, logger):
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
-    logger.info('Creating app...')
-    app.url_map.strict_slashes = False
 
-    app.config['CELERY_BROKER_URL'] = os.getenv('CELERY_BROKER_URL', 'redis://redis:6379/0')
-    app.config['result_backend'] = os.getenv('result_backend', 'redis://redis:6379/0')
-    app.config['broker_connection_retry_on_startup'] = True  
+    if logger is None:
+        logger = logging.getLogger(__name__)
+        logger.info('Created logger...')
+    else:
+        logger.info('Logger already created...')
 
-    CORS(app, resources={r"/*": {
-    "origins": ["*"],
-    "methods": ["GET", "POST", "PUT", "DELETE","OPTIONS"],
-    "allow_headers": ["Content-Type"]
-    }})
+    if app is None:
+        logger.info("Creating app...")
+        app = Flask(__name__, template_folder='../templates')
+        logger.info("App created...")
+        app.url_map.strict_slashes = False
+        app.config['CELERY_BROKER_URL'] = os.getenv('CELERY_BROKER_URL', 'redis://redis:6379/0')
+        app.config['result_backend'] = os.getenv('result_backend', 'redis://redis:6379/0')
+        app.config['broker_connection_retry_on_startup'] = True
+        logger.info("App config set...")
+        CORS(app, resources={r"/*": {
+            "origins": ["*"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type"]
+        }})
+        logger.info("CORS set...")
+    else:
+        logger.info('App already created...')
 
-    celery = make_celery(app)
-
-    return app, celery,logger
+    return app, logger

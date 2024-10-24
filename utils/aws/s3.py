@@ -2,6 +2,7 @@ import boto3
 from botocore.exceptions import NoCredentialsError,PartialCredentialsError,ClientError,EndpointConnectionError,BotoCoreError
 import mimetypes
 import os
+from app import logger
 BUCKET_NAME = os.getenv('S3_BUCKET_NAME')
 s3_client = None
 
@@ -48,25 +49,27 @@ def setup_s3_client():
 
 def upload_to_s3(file_content, file_name, bucket_name=BUCKET_NAME,directory_name=None, content_type=None):
     try:
+        logger.info(f"Uploading to S3: {file_name}")
         client = setup_s3_client()
 
         if directory_name:
             file_name = f"{directory_name}/{file_name}"
-
+        logger.info(f"File name: {file_name}")
         # Determine content type if not provided
         if not content_type:
             content_type, _ = mimetypes.guess_type(file_name)
             if not content_type:
                 content_type = 'application/octet-stream'
-
+        logger.info(f"Content type: {content_type}")
         client.put_object(
             Bucket=bucket_name,
             Key=file_name,
             Body=file_content,
             ContentType=content_type
         )
-
+        logger.info(f"Uploaded to S3: {file_name}")
         s3_url = f"https://{bucket_name}.s3.amazonaws.com/{file_name}"
+        logger.info(f"S3 URL: {s3_url}")
         return s3_url
 
     except NoCredentialsError:

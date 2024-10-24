@@ -15,8 +15,10 @@ import mimetypes
 from utils import db
 
 load_dotenv()
+app = None
+logger = None
 
-app, celery ,logger = create_app()
+app, logger = create_app(app, logger)
 
 from routes import api_v1,lifestyle_shots as LS
 from utils.csv_parser import parse_csv_to_list
