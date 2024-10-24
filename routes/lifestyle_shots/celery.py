@@ -43,7 +43,6 @@ def processor(file, filename, bucket_name,sku_id,index,filepath,seller_id,proces
         output_filename = f"{seller_id}_{sku_id}_{index}.jpg"
         output_path = os.path.join(processed_folder, output_filename)
         cv2.imwrite(output_path, centered_image)
-        return "Success"
         connection = db.create_connection()
         data = get_data_from_db(connection,sku_id)
         lifestyle_prompt = generate_prompt(data)
