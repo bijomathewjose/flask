@@ -164,8 +164,12 @@ def upload_file():
                         no_bg_image = cv2.cvtColor(no_bg_image, cv2.COLOR_BGR2BGRA)
                         no_bg_image[:, :, 3] = mask_resized
 
+                        # Add a white background to the background-eliminated image
+                        white_bg_image = add_white_background(no_bg_image)
+                        white_bg_image = cv2.cvtColor(white_bg_image, cv2.COLOR_BGR2BGRA)
+
                         # Apply center alignment
-                        centered_image = center_align_subject(no_bg_image)
+                        centered_image = center_align_subject(white_bg_image)
 
                         # Save the image
                         output_filename = f"{seller_id}_{sku_id}_{image_counter}.png"
@@ -178,7 +182,7 @@ def upload_file():
                         s3_urls.append(s3_url)
 
                         connection = db.create_connection()
-                        store_image_in_db(s3_url, sku_id, image_counter)
+                        store_image_in_db(connection, s3_url, sku_id, image_counter)
                         db.close_connection(connection)
 
                         processed_images.append(output_path)
@@ -240,8 +244,12 @@ def upload_file():
                         no_bg_image = cv2.cvtColor(no_bg_image, cv2.COLOR_BGR2BGRA)
                         no_bg_image[:, :, 3] = mask_resized
 
+                        # Add a white background to the background-eliminated image
+                        white_bg_image = add_white_background(no_bg_image)
+                        white_bg_image = cv2.cvtColor(white_bg_image, cv2.COLOR_BGR2BGRA)
+
                         # Apply bleed effect and center alignment
-                        bleeded_image = apply_bleed_effect(no_bg_image)
+                        bleeded_image = apply_bleed_effect(white_bg_image)
                         centered_image = center_align_subject(bleeded_image)
 
                         # Save the image
@@ -255,7 +263,7 @@ def upload_file():
                         s3_urls.append(s3_url)
 
                         connection = db.create_connection()
-                        store_image_in_db(s3_url, sku_id, image_counter)
+                        store_image_in_db(connection, s3_url, sku_id, image_counter)
                         db.close_connection(connection)
 
                         processed_images.append(output_path)
@@ -439,3 +447,11 @@ def center_align_subject(image):
     center_y = (image.shape[0] - h) // 2
     centered_image[center_y:center_y + h, center_x:center_x + w] = subject_region
     return centered_image
+
+def add_white_background(image):
+    """Add a white background to an image with a transparent background."""
+    white_background = np.ones_like(image) * 255
+    for c in range(3):  
+        white_background[:, :, c] = image[:, :, c] * (image[:, :, 3] / 255.0) + 255 * (1 - (image[:, :, 3] / 255.0))
+
+    return white_background    
