@@ -386,7 +386,12 @@ def upload_to_s3(file_path, s3_key):
 
     try:
         # Upload the file to the S3 bucket
-        s3_client.upload_file(file_path, "igo-media-dev", s3_key)
+        s3_client.upload_file(file_path, "igo-media-dev", s3_key,
+            ExtraArgs={
+                "ContentType": content_type,
+                "ContentDisposition": "inline"
+            }
+        )
         
         print(f"File {file_path} uploaded to S3 as {s3_key}.")
 
