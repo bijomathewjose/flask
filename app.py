@@ -21,10 +21,11 @@ logger = None
 app, logger = create_app(app, logger)
 
 from routes import api_v1,lifestyle_shots as LS
+from blueprints import creative_bp
 from utils.csv_parser import parse_csv_to_list
 
 app.register_blueprint(api_v1, url_prefix='/api/v1')
-
+app.register_blueprint(creative_bp, url_prefix='/creative')
 def store_image_in_db(connection, s3_url, sku_id, index):
     field_name = f"img_{index}"
     query = f"UPDATE all_platform_products SET {field_name} = %s WHERE sku = %s"
