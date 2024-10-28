@@ -2,12 +2,14 @@ import boto3
 from botocore.exceptions import NoCredentialsError,PartialCredentialsError,ClientError,EndpointConnectionError,BotoCoreError
 import mimetypes
 import os
-from app import logger
+import logging
+logger = logging.getLogger(__name__)
 BUCKET_NAME = os.getenv('S3_BUCKET_NAME')
-s3_client = None
+s3_client = None 
 
 def setup_s3_client():
     """
+
     Initializes and returns a boto3 S3 client with proper error handling.
 
     Returns:
