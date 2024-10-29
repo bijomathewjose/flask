@@ -93,7 +93,7 @@ def upload_to_s3(file_path, s3_key):
 
     try:
         # Upload the file to the S3 bucket
-        s3_client.upload_file(file_path, "igo-media-dev", s3_key,
+        s3_client.upload_file(file_path, S3_BUCKET_NAME, s3_key,
             ExtraArgs={
                 "ContentType": content_type,
                 "ContentDisposition": "inline"
@@ -107,4 +107,3 @@ def upload_to_s3(file_path, s3_key):
     
     except Exception as e:
         print(f"Failed to upload {file_path} to S3: {e}")
-
