@@ -6,6 +6,7 @@ from .lifestyle_shots import lifestyle_shots
 from .get_3D360_shots import get3D360
 from .bg_elimination import bg_elimination
 from .bg_elimination_bleed import bg_elimination_bleed
+import csv
 
 upload_bp = Blueprint('upload', __name__)
 
@@ -18,9 +19,44 @@ def upload_file():
         for process in list_of_process:
             output=process_handler(seller_id,process)
             outputs.append(output)
+            create_report(output)
         return jsonify({"message": f"Batch process completed successfully {outputs}", }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
+def create_report(output):
+    output_dir = 'report'
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Count existing report files to determine the new file number
+    existing_files = [f for f in os.listdir(output_dir) if f.startswith("report_file_") and f.endswith(".csv")]
+    file_number = len(existing_files) + 1
+    output_file = os.path.join(output_dir, f'report_file_{file_number}.csv')
+
+    # Determine the maximum number of URLs in any process for dynamic URL columns
+    max_urls = max(len(item.get('urls', [])) for item in output)
+
+    # Prepare CSV data and dynamically create headers for URLs
+    csv_data = []
+    for item in output:
+        row = {
+            'Process': item.get('process', ''),
+            'Response': item.get('response', '')
+        }
+        # Add URLs dynamically up to max_urls
+        urls = item.get('urls', [])
+        for i in range(max_urls):
+            row[f'URL_{i + 1}'] = urls[i] if i < len(urls) else ''
+        csv_data.append(row)
+
+    # Define fieldnames for CSV header, including dynamic URL columns
+    fieldnames = ['Process', 'Response'] + [f'URL_{i + 1}' for i in range(max_urls)]
+
+    # Write to CSV file
+    with open(output_file, 'w', newline='') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)  # Line 61
+        writer.writeheader()
+        writer.writerows(csv_data)    
 
 def process_handler(seller_id,process):
     sku_id = process['sku_id']
