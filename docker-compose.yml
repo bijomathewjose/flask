@@ -1,9 +1,4 @@
 services:
-  # redis:
-  #   image: redis:alpine
-  #   ports:
-  #     - "6379:6379"
-
   flask_app:
     build:
       context: .  # Build context where your Dockerfile is located
@@ -12,23 +7,10 @@ services:
     env_file:
       - .env
     volumes:
+      - ./templates:/usr/src/app/templates:ro  # Mount templates
       - .:/usr/src/app
       - ./requirements.txt:/usr/src/app/requirements.txt  # Mount requirements.txt
       - ${BASE_PATH}:/usr/src/app/assets
     ports:
       - "5000:5000"
-    command: ["gunicorn", "-w", "4", "--timeout", "1200",  "-b", "0.0.0.0:5000", "app:app"]
-    # depends_on:
-    #   - redis
-
-  # celery_worker:
-  #   build: .
-  #   command: celery -A app.celery worker --loglevel=info -c ${CELERY_WORKER_CONCURRENCY}
-  #   user: "1000:1000"
-  #   volumes:
-  #     - .:/usr/src/app
-  #   env_file:
-  #     - .env
-  #   depends_on:
-  #     - flask_app
-  #     - redis
+    command: ["gunicorn", "-w", "1", "--timeout", "1200","--reload","-b", "0.0.0.0:5000", "app:app"]

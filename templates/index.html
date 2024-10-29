@@ -94,7 +94,7 @@
 
         <label for="csv">Select CSV File:</label>
         <input type="file" id="csv" name="csv" accept=".csv" required><br><br>
-        <button type="submit">Upload</button>
+        <button type="submit">Uploads</button>
     </form>
 
     <div id="loadingMessage" class="hidden">Processing... Please wait.</div>
@@ -123,6 +123,7 @@
             })
                 .then(response => response.json().catch(() => ({ error: "Unexpected response from server" })))
                 .then(data => {
+                    console.log(data);
                     // Hide the loading message
                     loadingMessage.className = 'hidden';
 
