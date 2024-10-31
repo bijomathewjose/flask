@@ -3,7 +3,6 @@ from flask import render_template,Flask
 from flask_cors import CORS
 import logging
 load_dotenv()
-app = None
 logger = logging.getLogger(__name__)
 app = Flask(__name__,template_folder='./templates')
 CORS(app)

@@ -1,5 +1,8 @@
 from PIL import Image, ImageOps, ImageFile
 from io import BytesIO
+from urllib.parse import urlparse
+import requests
+from werkzeug.datastructures import FileStorage
 
 def create_canvas_with_bleed(image_stream: BytesIO, canvas_size: int=800, bleed: int=20) -> BytesIO:
     try:
@@ -43,3 +46,31 @@ def resize_image(img:ImageFile,size=(1400,1400)):
     img.save(output, format=format) 
     output.seek(0)
     return output
+
+def download_image(image_url):
+    parsed_url = urlparse(image_url)
+    if not parsed_url.scheme or not parsed_url.netloc:
+        raise ValueError("Invalid URL format.")
+    response = requests.get(image_url, stream=True, timeout=10)
+    response.raise_for_status()
+    # Check if the Content-Type header indicates an image
+    content_type = response.headers.get('Content-Type', '')
+    if not content_type.startswith('image/'):
+        raise ValueError("URL does not point to a valid image.")
+
+    # Optionally, you can enforce specific image types (e.g., JPEG, PNG)
+    allowed_types = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
+    if content_type not in allowed_types:
+        raise ValueError(f"Unsupported image type: {content_type}")
+
+    # Read the image content into BytesIO
+    image_stream = BytesIO(response.content)
+    image_stream.seek(0)  # Ensure the stream's position is at the start
+
+    # Extract the image filename from the URL or assign a default name
+    filename = image_url.split('/')[-1] or 'downloaded_image'
+
+    # Create a FileStorage object from the BytesIO stream
+    image_file = FileStorage(stream=image_stream, filename=filename)
+
+    return image_file
