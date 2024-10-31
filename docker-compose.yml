@@ -7,10 +7,8 @@ services:
     env_file:
       - .env
     volumes:
-      - ./templates:/usr/src/app/templates:ro  # Mount templates
       - .:/usr/src/app
-      - ./requirements.txt:/usr/src/app/requirements.txt  # Mount requirements.txt
       - ${BASE_PATH}:/usr/src/app/assets
     ports:
       - "5000:5000"
-    command: ["gunicorn", "-w", "1", "--timeout", "1200","--reload","-b", "0.0.0.0:5000", "app:app"]
+    command: ["gunicorn", "-w", "1","--reload","-b", "0.0.0.0:5000", "app:app"]

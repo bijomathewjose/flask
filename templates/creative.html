@@ -87,61 +87,15 @@
     <h1>Upload CSV for Backgrounds
 
         Removal</h1>
-    <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
-        <label for="sellerId">Seller ID:</label>
-        <input type="text" id="sellerId" name="sellerId" required placeholder="Enter Seller ID"><br><br>
-        <button type="submit">Uploading</button>
+    <form id="uploadForm" method="post" action="/creative">
+        <label for="sku_id">SKU</label>
+        <input type="text" id="sku_id" name="sku_id" required placeholder="Enter SKU">
+        <br><br>
+        <label for="template">SKU</label>
+        <input type="text" id="template_number" name="template_number" required placeholder="Enter Template number">
+        <br><br>
+        <button type="submit">Upload</button>
     </form>
-
-    <div id="loadingMessage" class="hidden">Processing... Please wait.</div>
-    <div id="completionMessage" class="hidden"></div>
-
-    <script>
-        const uploadForm = document.getElementById('uploadForm');
-        const loadingMessage = document.getElementById('loadingMessage');
-        const completionMessage = document.getElementById('completionMessage');
-
-        uploadForm.addEventListener('submit', function (event) {
-            event.preventDefault(); // Prevent the form from submitting normally
-
-            // Show the loading message
-            loadingMessage.className = 'visible';
-            completionMessage.className = 'hidden';
-            completionMessage.textContent = '';
-
-            // Create a FormData object
-            const formData = new FormData(uploadForm);
-
-            // Send the request
-            fetch('/upload', {
-                method: 'POST',
-                body: formData
-            })
-                .then(response => response.json().catch(() => ({ error: "Unexpected response from server" })))
-                .then(data => {
-                    // Hide the loading message
-                    loadingMessage.className = 'hidden';
-
-                    // Show the completion message
-                    completionMessage.className = 'visible';
-                    if (data.message) {
-                        completionMessage.textContent = data.message;
-                        completionMessage.className = 'visible success';
-                    } else {
-                        completionMessage.textContent = `Error: ${data.error}`;
-                        completionMessage.className = 'visible error';
-                    }
-                })
-                .catch(error => {
-                    // Hide the loading message
-                    loadingMessage.className = 'hidden';
-
-                    // Show the error message
-                    completionMessage.className = 'visible error';
-                    completionMessage.textContent = `Error: ${error}`;
-                });
-        });
-    </script>
 </body>
 
 </html>

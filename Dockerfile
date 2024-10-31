@@ -5,13 +5,18 @@ WORKDIR /usr/src/app
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libopencv-dev \
+    python3-opencv \
+    && rm -rf /var/lib/apt/lists/*
+
+
 RUN pip install --upgrade pip
 
 RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
-RUN apt-get update && apt-get install -y \
-    libopencv-dev \
-    python3-opencv
 
 
 COPY requirements.txt /usr/src/app/requirements.txt
@@ -21,8 +26,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # RUN useradd -ms /bin/bash celeryuser
 
 COPY . /usr/src/app
-
-ENV FLASK_APP=/usr/src/app/app.py
 
 EXPOSE 5000
 
