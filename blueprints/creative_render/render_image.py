@@ -56,8 +56,6 @@ def render_to_image(template_data: List[Dict[str, Any]],width:int=1000,height:in
         count=image_insertion(image_data,background,count)
     # Render text
     for text_data in template_data[0]["text_list"]:
-        place_text(text_data,draw,text_data["type"])
-        
         prev=0
         line_number=0
         for line in text_data["lines"]["data"]:
