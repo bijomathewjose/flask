@@ -6,6 +6,9 @@ import os
 from flask import jsonify
 
 def image_insertion(image_data: Dict[str, Any], background: Image, count:int=0):
+    if image_data['url'] is None:
+        count+=1
+        return count
     response = requests.get(image_data['url'])
     if response.status_code != 200:
         return count
@@ -83,13 +86,10 @@ def render_to_image(template_data: List[Dict[str, Any]],width:int=1000,height:in
             if (align == 'center' or align == 'centre'):
                 centreOffset = bbox[2] // 2
                 draw.text((x_axis+centreOffset, line_y), line, fill=font_color, font=font, anchor="rt", align="right")
-            
             elif (align == "right"):
                 draw.text((x_axis+int(width), line_y), line, fill=font_color, font=font, anchor="rt", align="right")
-
             else:
                 draw.text((x_axis, line_y), line, font_color, font=font, align="left")
-            # draw.text((x_axis, line_y), line, font=font, fill=font_color,align=align)
     # Save to in-memory file
     img_byte_arr = BytesIO()
     background.save(img_byte_arr, format="PNG")
