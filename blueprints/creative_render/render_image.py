@@ -49,18 +49,18 @@ def render_to_image(template_data: List[Dict[str, Any]],width:int=1000,height:in
     draw = ImageDraw.Draw(background)
     # Render images
     count=0
-    for image_data in template_data[0]["images"]:
+    template=template_data[2]
+    for image_data in template["images"]:
         if count>=4:
             break
         count=image_insertion(image_data,background,count)
     # Render text
-    for text_data in template_data[0]["text_list"]:
+    for text_data in template["text_list"]:
         x_axis=int(text_data['x'])
         y_axis=int(text_data['y'])
         characters_per_line=[line['char'] for line in text_data['lines']['data']]
         lines = []
-        line_spacing = 5
-        box_width=int(text_data['width'])
+        line_spacing = 10
         start=0
         for limit in characters_per_line:
             limit=int(limit)
@@ -71,17 +71,25 @@ def render_to_image(template_data: List[Dict[str, Any]],width:int=1000,height:in
             font_name=text_data['lines']['data'][i]['font']
             font_path=f'./static/fonts/{font_name}'
             
-            font_size=int(text_data['lines']['data'][i]['font_size'])
+            font_size=float(text_data['lines']['data'][i]['font_size'])
+            font_size=round(font_size*4.235)
             font = load_font(font_path, font_size)
             align=text_data['lines']['data'][i]['align']
             font_color=text_data['lines']['data'][i]['font_color']
-            bbox = draw.textbbox((0, 0), line, font=font,font_size=font_size,align=align)
-            text_width = bbox[2] - bbox[0]
+            bbox = draw.textbbox((0, 0), line, font=font,font_size=font_size)
             text_height = bbox[3] - bbox[1]
-            # Calculate position, centering text horizontally around (x, y) if desired
             line_y = y_axis + i * (text_height + line_spacing)
             # Draw text
-            draw.text((x_axis, line_y), line, font=font, fill=font_color)
+            if (align == 'center' or align == 'centre'):
+                centreOffset = bbox[2] // 2
+                draw.text((x_axis+centreOffset, line_y), line, fill=font_color, font=font, anchor="rt", align="right")
+            
+            elif (align == "right"):
+                draw.text((x_axis+int(width), line_y), line, fill=font_color, font=font, anchor="rt", align="right")
+
+            else:
+                draw.text((x_axis, line_y), line, font_color, font=font, align="left")
+            # draw.text((x_axis, line_y), line, font=font, fill=font_color,align=align)
     # Save to in-memory file
     img_byte_arr = BytesIO()
     background.save(img_byte_arr, format="PNG")
