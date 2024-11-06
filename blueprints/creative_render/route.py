@@ -41,7 +41,7 @@ def creative(sku_id,template_number):
     processed_data=add_db_data(result['db'],processed_data)
     result['processed_data']=processed_data
     try:
-        rendered_image = render_to_image(processed_data)
+        rendered_image = render_to_image(processed_data,db_data=result['db'])
     except Exception as e:
         return jsonify({'error':str(e),'traceback':traceback.format_exc()}), 500
     return send_file(rendered_image, mimetype='image/jpg')
