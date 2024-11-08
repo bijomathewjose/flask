@@ -1,7 +1,8 @@
 from flask import Blueprint,jsonify,send_file
+from blueprints.creative_render.TemplateRender import CreativeRender
+from blueprints.creative_render.types import TemplateData
 from .external_data import get_data_from_db, get_templates_from_sheet
 from .process_data import add_db_data, get_a_plus_template_models, process_models
-from .render_image import render_to_image
 
 import traceback
 
@@ -36,13 +37,17 @@ def creative(sku_id,template_number):
         template_number=int(temp_no)
     data=get_templates_from_sheet()
     template_models=get_a_plus_template_models(data,template_number)
-    # result['template_models']=template_models
     processed_data=process_models(template_models)
     processed_data=add_db_data(result['db'],processed_data)
     result['processed_data']=processed_data
-    try:
-        rendered_image = render_to_image(processed_data,db_data=result['db'])
-    except Exception as e:
-        return jsonify({'error':str(e),'traceback':traceback.format_exc()}), 500
-    return send_file(rendered_image, mimetype='image/jpg')
+    if True:
+        try:
+            template:TemplateData=processed_data[0]
+            render=CreativeRender(template,result['db'])
+            render.insert_images()
+            render.insert_the_texts()
+            rendered_image =render.get_background_image()
+        except Exception as e:
+            return jsonify({'error':str(e),'traceback':traceback.format_exc()}), 500
+        return send_file(rendered_image, mimetype='image/jpg')
     return jsonify(result), 200

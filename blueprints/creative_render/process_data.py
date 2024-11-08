@@ -1,4 +1,6 @@
-from typing import List,Dict,Any
+from typing import List,Dict,Any,cast
+from blueprints.creative_render.types import (ImageItem, LinesType, TemplateData, TextItem,
+    VectorItem)
 
 def get_a_plus_template_models(data:List[List[str]],template_number:int):
     models=[]
@@ -23,8 +25,8 @@ def add_category_to_str(original_string:str,category_name:str,name:str):
         new_string = original_string
     return new_string
 
-def parse_text_lines(lines_dict):
-    lines = []
+def parse_text_lines(lines_dict)->LinesType:
+    lines:list[Any] = []
     for line_key, line_value in lines_dict.items():
         if line_key.startswith("line"):
             line_num = int(line_key[4])
@@ -37,21 +39,22 @@ def parse_text_lines(lines_dict):
             lines_dict[line_key] = line_value
     return {"data": lines, "no_of_lines": lines_dict.get("no_of_lines", None)}
 
-def segragate_images_and_text(data:Dict[str,Any]):
+def segragate(raw_data:str)->TemplateData:
     try:
-        data= dict(eval(data))
-        name=data.get("name",None)
-        category=data.get("category_name",None)
-        images = []
-        texts = []
+        data:dict= dict(eval(raw_data))
+        images:list[Any] = []
+        texts:list[Any] = []
+        vectors:list[Any] = []
         # Separate images and texts dynamically
-        for key, value in data.items():
+        for key in list(data.keys()):
+            value=data[key]
             if key.startswith("img"):
                 img_num = int(key[3])  # Extract the image number
                 while len(images) < img_num:
                     images.append({})
                 images[img_num - 1][key[5:]] = value  # Add property to correct image dict
                 images[img_num - 1]["number"] = img_num
+                del data[key]  # Remove the processed key
             elif key.startswith("text"):
                 text_num = int(key[4])  # Extract the text number
                 while len(texts) < text_num:
@@ -61,25 +64,30 @@ def segragate_images_and_text(data:Dict[str,Any]):
                 else:
                     texts[text_num - 1][key[6:]] = value
                 texts[text_num - 1]["number"] = text_num
-        return images, texts, name, category
+                del data[key] 
+            elif key.startswith('vector'):
+                vector_num = int(key[6])
+                while len(vectors) < vector_num:
+                    vectors.append({})
+                vectors[vector_num - 1][key[8:]] = value
+                vectors[vector_num - 1]["number"] = vector_num
+                del data[key]
+        images=cast(List[ImageItem],images)
+        texts=cast(List[TextItem],texts)
+        vectors=cast(List[VectorItem],vectors)
+        out:TemplateData=cast(TemplateData,{ "images":images, "text_list":texts,"vectors":vectors}|data)
+        return out
     except Exception as e:
         print(f"Error: {data}")
         raise e
-        
-
-def process_models(models:List[str]):
-    list_of_text_types=[]
-    for index,model in enumerate(models):
-        images,text_list,name,category=segragate_images_and_text(model)
-        list_of_text_types.append({
-            'name':name,
-            'category':category,
-            'images':images,
-            'text_list':text_list   
-        })
+    
+def process_models(models:List[str]) -> List[TemplateData]:
+    list_of_text_types:List[TemplateData]=[]
+    for model in models:
+        list_of_text_types.append(segragate(model))
     return list_of_text_types
 
-def add_db_data(db_data:Dict[str,Any],processed_data:List[Dict[str,Any]]):
+def add_db_data(db_data:Dict[str,Any],processed_data:List[TemplateData]):
     for data in processed_data:
         count=0
         for image in data['images']:
@@ -89,12 +97,3 @@ def add_db_data(db_data:Dict[str,Any],processed_data:List[Dict[str,Any]]):
                 image['url']=db_data.get(f'img_{image["number"]}',None)
                 count+=1
     return processed_data
-
-
-def get_element_list(model: Dict[str,Any]):
-    element_list={}
-    # string to dict
-    model= dict(eval(model))
-    for key,value in model.items(): 
-        element_list[key]=value
-    return element_list
