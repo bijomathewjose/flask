@@ -10,8 +10,8 @@ import traceback
 creative_bp = Blueprint('creative', __name__,template_folder='./templates')
 
 import os
-@creative_bp.route('/<sku_id>/<template_number>',methods=['GET'])
-def creative(sku_id,template_number):
+@creative_bp.route('/<sku_id>/<template_number>/<demo>',methods=['GET'])
+def creative(sku_id,template_number,demo):
     # if request.method == 'GET':
         # return render_template('creative.html')
     
@@ -21,6 +21,8 @@ def creative(sku_id,template_number):
     # sku_id = request.form.get('sku_id')
     # template_number = int(request.form.get('template_number'))
     template_number=int(template_number)
+    demo=int(demo)
+    demo = demo-1 if demo > 0 else 1
     # input= request.form.to_dict()
     if sku_id:
         result['input'] = {
@@ -42,12 +44,30 @@ def creative(sku_id,template_number):
     result['processed_data']=processed_data
     if True:
         try:
-            template:TemplateData=processed_data[0]
-            render=CreativeRender(template,result['db'])
+            template:TemplateData=processed_data[demo]
+            render=CreativeRender(template,result['db'],sku_id,template_number,demo)
             render.insert_images()
             render.insert_the_texts()
+            render.insert_vectors()
             rendered_image =render.get_background_image()
         except Exception as e:
             return jsonify({'error':str(e),'traceback':traceback.format_exc()}), 500
+        
         return send_file(rendered_image, mimetype='image/jpg')
     return jsonify(result), 200
+
+
+def save_image_from_bytesio(rendered_image, file_path):
+    # Get the directory from the file path
+    directory = os.path.dirname(file_path)
+    
+    # Create the directory if it doesn't exist
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    
+    # Move the BytesIO pointer to the start
+    rendered_image.seek(0)
+    
+    # Write the BytesIO content to the file
+    with open(file_path, 'wb') as file:
+        file.write(rendered_image.read())

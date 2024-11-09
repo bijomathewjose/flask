@@ -1,7 +1,7 @@
-from blueprints.creative_render.types import (AllProductType, ImageItem,TemplateData, TextItem)
-from utils.Gen_AI.generate_prompt import generate_prompt
+from blueprints.creative_render.types import (AllProductType, ImageItem, TemplateData, TextItem,Masked_Images,VectorItem,Lifestyle_Shots)
+from utils.Gen_AI.generate_prompt import generate_prompt, generate_svg
 from PIL import Image,ImageDraw,ImageFont
-from typing import List
+from typing import Literal,List
 from io import BytesIO
 import requests
 import random
@@ -9,12 +9,16 @@ import json
 import os
 import re
 from blueprints.upload.lifestyle_shots import lifestyle_shots
+import cairosvg
 import math
 class CreativeRender:
-    def __init__(self,template:TemplateData,product_data:AllProductType):
+    def __init__(self,template:TemplateData,product_data:AllProductType,sku_id:str,template_number:int,demo:int):
         if template is None:
             raise Exception('Template not found')
         self.template=template  
+        self.sku_id=sku_id
+        self.template_number=template_number
+        self.demo=demo
         if product_data is None:
             raise Exception('Product data not found')
         self.product_data=product_data
@@ -26,17 +30,23 @@ class CreativeRender:
         if self.background_image is None:
             raise Exception('Background image not found')
     
-    def get_background_image(self):
+    def get_background_image(self,path=None):
         img_byte_arr = BytesIO()
         self.background_image.save(img_byte_arr, format='PNG')
         img_byte_arr.seek(0)
         self.background_image=None
+        save_path=path if path is not None else f'./assets/creative_render/{self.sku_id}-{self.template_number}-{self.demo}.jpg'
+        directory = os.path.dirname(save_path)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        with open(save_path, 'wb') as file:
+            file.write(img_byte_arr.getvalue())
         return img_byte_arr
     
     def insert_images(self):
         count=0
-        masked_images=['img_1','img_2','img_3','img_4']        
-        lifestyle_shots=['img_5','img_6','img_7','img_8']
+        masked_images:Masked_Images=['img_1','img_2','img_3','img_4']        
+        lifestyle_shots:Lifestyle_Shots=['img_5','img_6','img_7','img_8']
         images=self.template.get('images',[])
         for image in images:
             if count>=4:
@@ -92,6 +102,7 @@ class CreativeRender:
         if len(raw_texts)==0:
             return
         texts=self.insert_ai_generated_text(raw_texts)
+        self.template["text_list"]=texts
         if len(texts)==0:
             return
         draw = ImageDraw.Draw(self.background_image)
@@ -102,7 +113,7 @@ class CreativeRender:
         prompt=f"""
         Given the following inputs:
         - Product data: {self.product_data}
-        - This the template data: {texts} for this one
+        - This the template data of text: {texts} for this one
         Task:
         1. Add appropriate values for each line in text data lines
         2. Focus on the most important product features/benefits
@@ -138,7 +149,7 @@ class CreativeRender:
         for i,line in enumerate(lines):
             character_limit=int(line["char"])
             string=line["text_value"]
-            # value=string[:character_limit]
+            value=string[:character_limit]
             value=re.sub(r'[^A-Za-z0-9 _-]', '', string)
             font_path=f'./static/fonts/{line["font"]}'
             font_size=int(line["font_size"])*4.235       
@@ -183,4 +194,52 @@ class CreativeRender:
             return x_axis + width
         else:
             return x_axis
-        
+    
+    def insert_vectors(self):
+        vectors=self.template["vectors"]
+        text_data=self.template["text_list"]
+        for idx,text in enumerate(text_data):
+            if idx >= len(vectors) or vectors[idx] is None:
+                continue
+            vector=vectors[idx]
+            color=vector["color"]
+            height=int(vector["height"])
+            width=int(vector["width"])
+            x_axis,y_axis=int(vector["x"]),int(vector["y"])
+            text_values=[line["text_value"] for line in text["lines"]["data"] ]
+            prompt=f"""
+                    Generate a svg vector based on the values provided : {text_values} in circular shape 
+                    The svg is used to showcase a feature of a product.
+                    The svg size is {width}x{height}
+            """
+            svg_code=generate_svg(prompt)
+            svg_code=svg_code.strip("```svg")
+            location=svg_code.find("```")
+            if location != -1:
+                svg_code=svg_code[:location]
+            
+            if not svg_code or svg_code.strip() == "":
+                raise ValueError("SVG code is empty or None.")
+            svg_code = svg_code.replace("{stroke}", color)
+            try:
+                png_data =self.convert_svg_to_png(svg_code, width, height)
+            except Exception as e:
+                print("Error converting SVG to PNG:", e)
+                continue
+            with Image.open(BytesIO(png_data)) as png:
+                bg_image=self.background_image
+                bg_image.paste(png, (x_axis, y_axis), png)
+
+    def convert_svg_to_png(self,svg_code, width, height):
+    # Check if svg_code is not empty or None
+        if not svg_code:
+            raise ValueError("SVG code is empty or None.")
+        try:
+            # Convert SVG to PNG
+            png_data = cairosvg.svg2png(bytestring=svg_code.encode('utf-8'), output_width=width, output_height=height)
+        except Exception as e:
+            # Handle and log the specific error
+            print("Error converting SVG to PNG:", e)
+            raise e
+
+        return png_data

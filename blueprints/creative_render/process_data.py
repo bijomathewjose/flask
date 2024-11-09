@@ -38,10 +38,12 @@ def parse_text_lines(lines_dict)->LinesType:
             # Handle metadata like "no_of_lines"
             lines_dict[line_key] = line_value
     return {"data": lines, "no_of_lines": lines_dict.get("no_of_lines", None)}
-
+import json
 def segragate(raw_data:str)->TemplateData:
+    data=raw_data
     try:
-        data:dict= dict(eval(raw_data))
+        eval_data=eval(data)
+        data:dict= dict(eval_data)
         images:list[Any] = []
         texts:list[Any] = []
         vectors:list[Any] = []
@@ -51,7 +53,7 @@ def segragate(raw_data:str)->TemplateData:
             if key.startswith("img"):
                 img_num = int(key[3])  # Extract the image number
                 while len(images) < img_num:
-                    images.append({})
+                    images.append({})   
                 images[img_num - 1][key[5:]] = value  # Add property to correct image dict
                 images[img_num - 1]["number"] = img_num
                 del data[key]  # Remove the processed key
@@ -83,7 +85,8 @@ def segragate(raw_data:str)->TemplateData:
     
 def process_models(models:List[str]) -> List[TemplateData]:
     list_of_text_types:List[TemplateData]=[]
-    for model in models:
+    for i,model in enumerate(models):
+        print(f"Processing model {i}")
         list_of_text_types.append(segragate(model))
     return list_of_text_types
 

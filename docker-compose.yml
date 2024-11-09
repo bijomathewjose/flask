@@ -11,4 +11,5 @@ services:
       - ${BASE_PATH}:/usr/src/app/assets
     ports:
       - "5000:5000"
-    command: ["gunicorn", "-w", "1","--reload","-b", "0.0.0.0:5000", "app:app"]
+    command: ["gunicorn", "-w", "1", "--reload", "-b", "0.0.0.0:5000", "--timeout", "1200", "app:app"]
+ 

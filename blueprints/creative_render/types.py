@@ -1,8 +1,11 @@
 
 from typing import TypedDict, List, Literal
+from blueprints.upload.lifestyle_shots import lifestyle_shots
 ImageTypes=Literal['wb','ls','mask']
 TextItemType=Literal['para','para_title','info_title','bull_title','bull','Info']
 Category = Literal["A+", "food_&_groceries", "home_decor", "cosmetics", "fashion", "demo"]
+Masked_Images=Literal['img_1','img_2','img_3','img_4']
+Lifestyle_Shots=Literal['img_5','img_6','img_7','img_8']
 class LineData(TypedDict, total=False):
     align: str
     char: str
