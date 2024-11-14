@@ -2,7 +2,10 @@ import boto3
 from botocore.exceptions import NoCredentialsError,PartialCredentialsError,ClientError,EndpointConnectionError,BotoCoreError
 import mimetypes
 import os
+from urllib.parse import urlparse
 import logging
+from pathlib import Path
+
 logger = logging.getLogger(__name__)
 BUCKET_NAME = os.getenv('S3_BUCKET_NAME')
 s3_client = None 
@@ -78,3 +81,25 @@ def upload_to_s3(file_content, file_name, bucket_name=BUCKET_NAME,directory_name
         raise Exception("AWS credentials not available")
     except Exception as e:
         raise Exception(f"Error uploading to S3: {str(e)}")
+
+
+def download_files_from_s3(save_path, image_url):
+    # Create an S3 resource
+    s3_resource = boto3.resource('s3')
+
+    
+    # Parse the font URL to get the S3 bucket and object key
+    parsed_url = urlparse(image_url)
+    object_key=parsed_url.path[1:]
+    bucket_name = parsed_url.netloc.split('.')[0]
+    # Get the S3 object
+    s3_object = s3_resource.Object(bucket_name, object_key)
+    save_path = Path(save_path).absolute().resolve()
+    os.makedirs(save_path.parent, exist_ok=True)
+
+    response = s3_object.get()
+    file_content = response['Body'].read()
+    with open(save_path, 'wb') as local_file:
+        local_file.write(file_content)
+
+    return save_path 

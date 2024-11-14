@@ -11,6 +11,12 @@ import re
 from blueprints.upload.lifestyle_shots import lifestyle_shots
 import cairosvg
 import math
+from utils import image as IMG
+from utils.aws import s3 as S3
+import tempfile
+
+S3_BUCKET_NAME = os.getenv('S3_BUCKET_NAME')
+AWS_DEFAULT_REGION = os.getenv('AWS_DEFAULT_REGION')
 class CreativeRender:
     def __init__(self,template:TemplateData,product_data:AllProductType,sku_id:str,template_number:int,demo:int):
         if template is None:
@@ -22,10 +28,11 @@ class CreativeRender:
         if product_data is None:
             raise Exception('Product data not found')
         self.product_data=product_data
-        path=f'./assets/templates/background/{self.template["background"]}'
-        with Image.open(path) as img:
+        path=f"https://{S3_BUCKET_NAME}.s3.{AWS_DEFAULT_REGION}.amazonaws.com/asssets/backgrounds/{self.template["background"]}"
+        bg_image=self.bg_img=IMG.download_image(path)
+        with Image.open(bg_image) as img:
             rgba_background = img.convert("RGBA")
-            resized_background=self.resize_image(rgba_background,1000,1000)
+            resized_background=self.resize_image(rgba_background,1000,1000,dual_resize=True)
             self.background_image=resized_background
         if self.background_image is None:
             raise Exception('Background image not found')
@@ -88,12 +95,20 @@ class CreativeRender:
         white_background = white_background.rotate(angle, expand=True)
         bg_image.paste(white_background, (x_axis, y_axis), white_background)
     
-    def resize_image(self,img: Image,width:int,height:int,keep_ratio=True):
+    def resize_image(self,img: Image,width:int,height:int,keep_ratio=True,dual_resize=False)->Image:
         if keep_ratio:
             original_width, original_height = img.size
-            original_ratio = min(width / original_width, height / original_height)
-            width=int(original_width * original_ratio)
-            height=int(original_height * original_ratio)
+            if dual_resize:
+                original_ratio = min(width / original_width, height / original_height)
+                width=int(original_width * original_ratio)
+                height=int(original_height * original_ratio)
+            else:
+                if width>height:
+                    ratio = width / original_width
+                    height = int(original_height * ratio)
+                else:
+                    ratio = height / original_height
+                    width = int(original_width * ratio)
         img=img.resize((width, height), Image.Resampling.LANCZOS) 
         return img 
     
@@ -112,7 +127,7 @@ class CreativeRender:
     def insert_ai_generated_text(self,texts:List[TextItem])-> List[TextItem]:
         prompt=f"""
         Given the following inputs:
-        - Product data: {self.product_data}
+        - Product data: {self.product_data['text_dump']}
         - This the template data of text: {texts} for this one
         Task:
         1. Add appropriate values for each line in text data lines
@@ -141,7 +156,7 @@ class CreativeRender:
 
         return texts
 
-    def paste_lines(self,text:TextItem,draw: ImageDraw.Draw):
+    def paste_lines(self,text:TextItem,draw: ImageDraw.ImageDraw):
         x_axis,y_axis=int(text["x"])+23.88,int(text["y"])
         text_box_width=int(text["width"])
         lines=text["lines"]['data']
@@ -153,19 +168,36 @@ class CreativeRender:
             value=re.sub(r'[^A-Za-z0-9 _-]', '', string)
             font_path=f'./static/fonts/{line["font"]}'
             font_size=int(line["font_size"])*4.235       
-            font=self.load_font(font_path,font_size)     
+            font=self.load_font(font_path,line["font"], font_size)     
+            bbox_w1 = draw.textbbox((0, 0), value, font=font) 
+            w1 = (bbox_w1[2] - bbox_w1[0], bbox_w1[3] - bbox_w1[1])
+            title_font1 = self.singleLine(draw, line['font'], font_size, value, font, text_box_width)
             align=line["align"]
-            color=line["font_color"]
-            bbox = draw.textbbox((0, 0), value, font=font,font_size=font_size)
-            text_height = bbox[3] - bbox[1]
-            text_width = bbox[2] - bbox[0]
-            x_axis=self.align_text(align,text_width,x_axis,text_box_width)
-            y_offset=line.get("offset",20)
-            line_y = y_axis + i * (text_height + y_offset)
-            draw.text((x_axis, line_y), value, fill=color, font=font,anchor="lt")
+            bbox = draw.multiline_textbbox((0, 0), "dummy string for spacing", font=title_font1, align=align)
+            y_pos = (bbox[3]-bbox[1])
+            bbox_w = draw.multiline_textbbox((0, 0), value, font=title_font1,)
+            w = (bbox_w[2] - bbox_w[0], bbox_w[3] - bbox_w[1])
 
-    def load_font(self,font_path, font_size=20):
-    # Check if the font file exists
+            textYPos = y_axis + round(((w1[1]/2)-(w[1]/2)))
+            if (align == 'center'):
+                centreOffset = int(text_box_width)/2 - w[0]/2
+                draw.text((x_axis+centreOffset, textYPos), value, fill=line["font_color"], font=title_font1)
+            
+            elif (align == "right"):
+                draw.text((x_axis+int(text_box_width), textYPos), value, fill=line["font_color"], font=title_font1, anchor="rt", align="right")
+
+            else:
+                draw.text((x_axis, textYPos), value, fill=line["font_color"], font=title_font1, align="left")
+
+            y_axis = 5+textYPos+y_pos
+
+    def load_font(self,font_path,font_name, font_size=20):
+        if not os.path.exists(font_path):
+            path=f"https://{S3_BUCKET_NAME}.s3.{AWS_DEFAULT_REGION}.amazonaws.com/asssets/fonts/{font_name}"
+            font_path = S3.download_files_from_s3(font_path, path) 
+        else:
+            print(f"Font file '{font_path}' exists.")
+        # Check if the font file exists
         if not os.path.exists(font_path):
             print(f"Error: Font file '{font_path}' does not exist.")
             return ImageFont.load_default()  # Use default font as a fallback
@@ -243,3 +275,34 @@ class CreativeRender:
             raise e
 
         return png_data
+
+    def singleLine(self,draw_image, fontName, fontSize, inString, title_font, width):
+        bbox = draw_image.multiline_textbbox((0, 0), inString, font=title_font)
+        text_width = bbox[2]-bbox[0]
+        height = bbox[3] - bbox[1]
+        if (width < text_width):
+            fontSize1 = self.Font_size(width,inString,fontName)
+            font_path=f'./static/fonts/{fontName}'
+            title_font = self.load_font(font_path,fontName,fontSize1)
+            return title_font
+        else:
+            return title_font
+        
+    def Font_size(self,width, txt, font):
+        fontsize = 1  # starting font size
+        font_path=f'./static/fonts/{font}'
+        # font = ImageFont.truetype(font, fontsize)
+        title_font=self.load_font(font_path,font,fontsize)
+
+        while round(title_font.getlength(txt)) < width:
+            # iterate until the text size is just larger than the criteria
+            fontsize += 1
+            title_font = self.load_font(font_path, font,fontsize)
+
+        # optionally de-increment to be sure it is less than criteria
+        fontsize -= 1
+        title_font = self.load_font(font_path,font, fontsize)
+
+        return fontsize
+    
+    

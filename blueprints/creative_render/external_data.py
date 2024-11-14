@@ -17,3 +17,4 @@ def get_templates_from_sheet():
     sheet_id=google.get_sheet_id(SHEET_LINK)
     data=google.get_sheet_data(sheet_id,SHEET_NAME)
     return data
+    

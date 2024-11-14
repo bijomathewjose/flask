@@ -45,6 +45,7 @@ def creative(sku_id,template_number,demo):
     if True:
         try:
             template:TemplateData=processed_data[demo]
+            print(template)
             render=CreativeRender(template,result['db'],sku_id,template_number,demo)
             render.insert_images()
             render.insert_the_texts()
